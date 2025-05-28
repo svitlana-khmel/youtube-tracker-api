@@ -42,8 +42,8 @@ This is the **backend API** for the **YouTube Arduino Tracker Chrome Extension**
 
 1. **Clone the repository**  
    ```bash
-   git clone https://github.com/your-org/youtube-arduino-tracker-backend.git
-   cd youtube-arduino-tracker-backend
+   git clone https://svetlana_khmel@bitbucket.org/svitlana_khmel/youtube-tracker-api.git
+```
 Restore packages
 
 ```

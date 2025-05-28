@@ -72,8 +72,8 @@ MIT or specify your license here.
 
 @todo::
 
--check regestration
--check data storage
+- check regestration
+- check data storage
 - Later - AI integration
--save report to PDF (see repo)
+- save report to PDF (see repo)
 https://bitbucket.org/svitlana_khmel/tracker-api/src/main/TrackerApi/Models/

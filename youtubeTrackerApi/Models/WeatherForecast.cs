@@ -1,6 +1,9 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace EyeTrackingApi.Models;
 public class WeatherForecast
 {
+    [Key]
     public int Id { get; set; }
     public DateTime Date { get; set; }
     public int TemperatureC { get; set; }

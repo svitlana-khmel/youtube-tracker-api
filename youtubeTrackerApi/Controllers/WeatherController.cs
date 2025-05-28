@@ -14,25 +14,26 @@ public class WeatherController : ControllerBase
         _context = context;
     }
 
-    // [HttpGet]
-    // public async Task<IActionResult> GetWeatherForecasts()
-    // {
-    //     var forecasts = new[]
-    //     {
-    //         new WeatherForecast
-    //         {
-    //             Date = DateOnly.FromDateTime(DateTime.Now),
-    //             TemperatureC = Random.Shared.Next(-20, 55),
-    //             Summary = GetRandomSummary()
-    //         }
-    //     };
+    [HttpGet]
+    public async Task<IActionResult> GetWeatherForecasts()
+    {
+        // var forecasts = new[]
+        // {
+        //     new WeatherForecast
+        //     {
+        //         Date = DateOnly.FromDateTime(DateTime.Now),
+        //         TemperatureC = Random.Shared.Next(-20, 55),
+        //         Summary = GetRandomSummary()
+        //     }
+        // };
 
-    //     // Optionally save to database
-    //     _context.WeatherForecasts.AddRange(forecasts);
-    //     await _context.SaveChangesAsync();
+        // // Optionally save to database
+        // _context.WeatherForecasts.AddRange(forecasts);
+        // await _context.SaveChangesAsync();
 
-    //     return Ok(forecasts);
-    // }
+        //return Ok(forecasts);
+        return Ok();
+    }
 
     private static string GetRandomSummary()
     {
@@ -43,5 +44,10 @@ public class WeatherController : ControllerBase
         };
 
         return summaries[Random.Shared.Next(summaries.Length)];
+    }
+
+    public record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
+    {
+        public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
     }
 }

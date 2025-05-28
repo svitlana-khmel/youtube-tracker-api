@@ -6,8 +6,16 @@ public class ApplicationDbContext : IdentityDbContext<IdentityUser>
 {
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
 
-    public DbSet<WeatherForecast> WeatherForecasts { get; set; } // ✅ Add this line
+    public DbSet<WeatherForecast> WeatherForecasts { get; set; }
+
+    protected override void OnModelCreating(ModelBuilder builder)
+    {
+        base.OnModelCreating(builder); // Ensure Identity is correctly configured
+        builder.Entity<WeatherForecast>().HasNoKey(); // Mark it as a keyless entity
+    }
 }
+
+
 
 
 

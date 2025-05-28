@@ -12,6 +12,10 @@ builder.Services.AddAuthorization();
 builder.Services.AddDbContext<ApplicationDbContext>(
     options => options.UseInMemoryDatabase("AppDb"));
 
+builder.Services.AddIdentity<IdentityUser, IdentityRole>()
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddDefaultTokenProviders();
+
 // Ensure Identity is only added once
 builder.Services.AddIdentity<IdentityUser, IdentityRole>()
     .AddEntityFrameworkStores<ApplicationDbContext>()
@@ -20,7 +24,7 @@ builder.Services.AddIdentity<IdentityUser, IdentityRole>()
 // Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddSingleton<IEmailSender<IdentityUser>, NoOpEmailSender>();
+builder.Services.AddTransient<IEmailSender<IdentityUser>, NoOpEmailSender>();
 
 var app = builder.Build();
 

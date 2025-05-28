@@ -68,3 +68,12 @@ You can use the in-memory database to mock and test data interactions locally wi
 
 ###📄 License
 MIT or specify your license here.
+
+
+@todo::
+
+-check regestration
+-check data storage
+- Later - AI integration
+-save report to PDF (see repo)
+https://bitbucket.org/svitlana_khmel/tracker-api/src/main/TrackerApi/Models/

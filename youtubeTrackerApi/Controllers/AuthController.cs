@@ -27,16 +27,16 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
-    public async Task<IActionResult> Register([FromBody] RegisterModel model)
+    public async Task<IActionResult> Register([FromBody] RegisterDto dto)
     {
         var user = new ApplicationUser
         {
-            UserName = model.Email,
-            Email = model.Email,
+            UserName = dto.Email,
+            Email = dto.Email,
             CreatedAt = DateTime.UtcNow
         };
 
-        var result = await _userManager.CreateAsync(user, model.Password);
+        var result = await _userManager.CreateAsync(user, dto.Password);
 
         if (result.Succeeded)
         {
@@ -47,16 +47,27 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginModel model)
+    public async Task<IActionResult> Login([FromBody] LoginDto dto)
     {
-        var user = await _userManager.FindByEmailAsync(model.Email);
+        //var user = await _userManager.FindByEmailAsync(model.Email);
+        var user = await _userManager.FindByEmailAsync(dto.Email);
         if (user == null) return Unauthorized();
 
-        var result = await _signInManager.CheckPasswordSignInAsync(user, model.Password, false);
-        if (!result.Succeeded) return Unauthorized();
+        //var result = await _signInManager.CheckPasswordSignInAsync(user, model.Password, false);
+        // if (!result.Succeeded) return Unauthorized();
+        // var token = GenerateJwtToken(user);
+        // return Ok(new { token });
 
+
+
+        if (user == null || !await _userManager.CheckPasswordAsync(user, dto.Password))
+            return Unauthorized("Invalid credentials");
+
+        // ✅ Manually issue JWT
         var token = GenerateJwtToken(user);
         return Ok(new { token });
+
+
     }
 
     private string GenerateJwtToken(ApplicationUser user)

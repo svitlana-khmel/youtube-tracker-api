@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace EyeTrackingApi.Models;
 public class RegisterModel
 {

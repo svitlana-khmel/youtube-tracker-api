@@ -6,8 +6,12 @@ using EyeTrackingApi.Models;
 public class ApplicationDbContext : IdentityDbContext<IdentityUser>
 {
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
-
-    public DbSet<ApplicationUser> Users { get; set; }
+    public new DbSet<ApplicationUser> Users { get; set; }
+    public DbSet<SessionData> Sessions { get; set; }
+    public DbSet<TrackingDataPoint> TrackingDataPoints { get; set; }
+    public DbSet<VideoState> VideoStates { get; set; }
+    public DbSet<GazeData> GazeDataPoints { get; set; }
+    public DbSet<Biometrics> BiometricsData { get; set; }
 }
 
 

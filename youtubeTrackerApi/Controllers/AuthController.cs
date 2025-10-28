@@ -74,11 +74,11 @@ public class AuthController : ControllerBase
     {
         var claims = new[]
         {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Email),
+            new Claim(JwtRegisteredClaimNames.Sub, user.Email ?? string.Empty),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
         };
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var token = new JwtSecurityToken(
@@ -91,6 +91,50 @@ public class AuthController : ControllerBase
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
+
+    [HttpPost("refresh")]
+    public IActionResult Refresh([FromBody] RefreshDto dto)
+    {
+        if (string.IsNullOrEmpty(dto.Token))
+            return BadRequest(new { ok = false, error = "No token provided" });
+
+        var handler = new JwtSecurityTokenHandler();
+        try
+        {
+            var jwtToken = handler.ReadJwtToken(dto.Token);
+
+            // Optional: Validate token signature (skip lifetime)
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
+            var validationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = key,
+                ValidateIssuer = true,
+                ValidIssuer = _configuration["Jwt:Issuer"],
+                ValidateAudience = true,
+                ValidAudience = _configuration["Jwt:Audience"],
+                ValidateLifetime = false // Important: allow expired tokens
+            };
+
+            var principal = handler.ValidateToken(dto.Token, validationParameters, out var validatedToken);
+
+            // Get user email from claims
+            var email = principal.FindFirstValue(JwtRegisteredClaimNames.Sub);
+            if (email == null) return Unauthorized();
+
+            // Generate new token
+            var user = _userManager.FindByEmailAsync(email).Result;
+            if (user == null) return Unauthorized();
+
+            var newToken = GenerateJwtToken(user);
+            return Ok(new { token = newToken });
+        }
+        catch (Exception ex)
+        {
+            return Unauthorized(new { ok = false, error = "Invalid token", details = ex.Message });
+        }
+    }
+
 }
 
 

@@ -6,6 +6,8 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+
 
 namespace EyeTrackingApi.Controllers
 {
@@ -14,7 +16,6 @@ namespace EyeTrackingApi.Controllers
     [Authorize(AuthenticationSchemes = "Bearer")]
     public class TrackingController : ControllerBase
     {
-        // POST: /api/tracking/sav
         private readonly ApplicationDbContext _context;
 
         public TrackingController(ApplicationDbContext context)
@@ -87,8 +88,7 @@ namespace EyeTrackingApi.Controllers
                         .ThenInclude(t => t.GazeData)
                     .FirstOrDefaultAsync(s => s.Id == id);
 
-                if (session == null)
-                    return NotFound();
+                if (session == null) return NotFound();
 
                 byte[] fileBytes;
                 string contentType;
@@ -97,33 +97,74 @@ namespace EyeTrackingApi.Controllers
                 switch (format.ToLower())
                 {
                     case "json":
-                        var dto = new SessionDto
+                        var exportDto = new SessionExportDto
                         {
-                            Id = session.Id,
-                            TrackingDataPoints = session.TrackingDataPoints.Select(t => new TrackingPointDto
-                            {
-                                Timestamp = t.Timestamp,
-                                X = t.VideoState?.X,
-                                Y = t.VideoState?.Y,
-                                Width = t.VideoState?.Width,
-                                Height = t.VideoState?.Height,
-                                Bpm = t.Biometrics?.Bpm,
-                                Gsr = t.Biometrics?.Gsr,
-                                AvgBpm = t.Biometrics?.AvgBpm
-                            }).ToList()
+                            PageUrl = session.PageUrl,
+                            StartTime = session.StartTime,
+                            TrackingData = session.TrackingDataPoints
+                                .Select(t => new TrackingDataPointDto
+                                {
+                                    Timestamp = t.Timestamp,
+                                    VideoState = t.VideoState,
+                                    Biometrics = t.Biometrics,
+                                    GazeData = t.GazeData
+                                }).ToList()
                         };
 
                         fileBytes = Encoding.UTF8.GetBytes(
-                            JsonSerializer.Serialize(dto, new JsonSerializerOptions { WriteIndented = true })
+                            JsonSerializer.Serialize(exportDto, new JsonSerializerOptions
+                            {
+                                WriteIndented = true,
+                                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+                            })
                         );
-                        contentType = "application/json"; // ✅ Added this line
+                        contentType = "application/json";
                         break;
 
                     case "txt":
-                        var sb = new StringBuilder();
+                        // ✅ Dump entire structure for text format as well
+                        var fullText = new StringBuilder();
+                        fullText.AppendLine($"Page URL: {session.PageUrl}");
+                        fullText.AppendLine($"Start Time: {session.StartTime}");
+                        fullText.AppendLine($"Video Title: {session.VideoTitle}");
+                        fullText.AppendLine();
+                        fullText.AppendLine("Tracking Data:");
+                        fullText.AppendLine();
+
                         foreach (var t in session.TrackingDataPoints)
-                            sb.AppendLine($"{t.Timestamp}: x={t.VideoState?.X ?? 0}, y={t.VideoState?.Y ?? 0}, bpm={t.Biometrics?.Bpm ?? 0}");
-                        fileBytes = Encoding.UTF8.GetBytes(sb.ToString());
+                        {
+                            fullText.AppendLine($"Timestamp: {t.Timestamp}");
+                            if (t.VideoState != null)
+                            {
+                                fullText.AppendLine($"  VideoState:");
+                                fullText.AppendLine($"    Width: {t.VideoState.Width}");
+                                fullText.AppendLine($"    Height: {t.VideoState.Height}");
+                                fullText.AppendLine($"    X: {t.VideoState.X}");
+                                fullText.AppendLine($"    Y: {t.VideoState.Y}");
+                                fullText.AppendLine($"    IsFullscreen: {t.VideoState.IsFullscreen}");
+                                fullText.AppendLine($"    CurrentTime: {t.VideoState.CurrentTime}");
+                                fullText.AppendLine($"    IsPaused: {t.VideoState.IsPaused}");
+                            }
+
+                            if (t.Biometrics != null)
+                            {
+                                fullText.AppendLine($"  Biometrics:");
+                                fullText.AppendLine($"    BPM: {t.Biometrics.Bpm}");
+                                fullText.AppendLine($"    GSR: {t.Biometrics.Gsr}");
+                                fullText.AppendLine($"    AvgBPM: {t.Biometrics.AvgBpm}");
+                            }
+
+                            if (t.GazeData != null)
+                            {
+                                fullText.AppendLine($"  GazeData:");
+                                fullText.AppendLine($"    X: {t.GazeData.X}");
+                                fullText.AppendLine($"    Y: {t.GazeData.Y}");
+                            }
+
+                            fullText.AppendLine();
+                        }
+
+                        fileBytes = Encoding.UTF8.GetBytes(fullText.ToString());
                         contentType = "text/plain";
                         break;
 
@@ -131,28 +172,9 @@ namespace EyeTrackingApi.Controllers
                         var csvSb = new StringBuilder();
                         csvSb.AppendLine("Timestamp,X,Y,Width,Height,BPM,GSR,AvgBPM");
                         foreach (var t in session.TrackingDataPoints)
-                            csvSb.AppendLine($"{t.Timestamp},{t.VideoState?.X ?? 0},{t.VideoState?.Y ?? 0},{t.VideoState?.Width ?? 0},{t.VideoState?.Height ?? 0},{t.Biometrics?.Bpm ?? 0},{t.Biometrics?.Gsr ?? 0},{t.Biometrics?.AvgBpm ?? 0}");
+                            csvSb.AppendLine($"{t.Timestamp},{t.VideoState?.X},{t.VideoState?.Y},{t.VideoState?.Width},{t.VideoState?.Height},{t.Biometrics?.Bpm},{t.Biometrics?.Gsr},{t.Biometrics?.AvgBpm}");
                         fileBytes = Encoding.UTF8.GetBytes(csvSb.ToString());
                         contentType = "text/csv";
-                        break;
-
-                    case "zip":
-                        byte[] zipBytes;
-                        using (var ms = new MemoryStream())
-                        {
-                            using (var archive = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Create, true))
-                            {
-                                var entry = archive.CreateEntry($"session-{id}.json");
-                                using var entryStream = entry.Open();
-                                using var writer = new StreamWriter(entryStream);
-                                writer.Write(JsonSerializer.Serialize(session, new JsonSerializerOptions { WriteIndented = true }));
-                            }
-
-                            zipBytes = ms.ToArray(); // capture bytes inside using
-                        }
-
-                        fileBytes = zipBytes;
-                        contentType = "application/zip";
                         break;
 
                     default:
@@ -167,6 +189,7 @@ namespace EyeTrackingApi.Controllers
                 return StatusCode(500, new { error = ex.Message });
             }
         }
+
 
     }
 }

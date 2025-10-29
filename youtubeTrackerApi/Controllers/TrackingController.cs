@@ -1,7 +1,6 @@
 using EyeTrackingApi.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-//using EyeTrackingApi.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using System.Text;
@@ -23,21 +22,6 @@ namespace EyeTrackingApi.Controllers
             _context = context;
         }
 
-        // public IActionResult Save([FromBody] SessionData sessionData)
-        // {
-        //     if (sessionData == null)
-        //     {
-        //         return BadRequest(new { ok = false, error = "No session data provided" });
-        //     }
-
-        //     // For now, just log it (replace with DB save later)
-        //     Console.WriteLine("Received session data for video: " + sessionData.VideoTitle);
-        //     Console.WriteLine($"Tracking points: {sessionData.TrackingData.Count}");
-
-        //     // Example: store sessionData in database here
-
-        //     return Ok(new { ok = true, message = "Session data saved successfully" });
-        // }
         [HttpPost("save")]
         public async Task<IActionResult> Save([FromBody] SessionData sessionData)
         {
@@ -48,14 +32,6 @@ namespace EyeTrackingApi.Controllers
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (userId != null)
                 sessionData.UserId = userId;
-
-            //sessionData.StartTime = DateTime.Parse(sessionData.StartTime);
-
-            // Fix nested objects IDs
-            // foreach (var point in sessionData.TrackingDataPoints)
-            // {
-            //     point.Timestamp = DateTime.Parse(point.Timestamp);
-            // }
 
             await _context.Sessions.AddAsync(sessionData);
             await _context.SaveChangesAsync();
@@ -97,25 +73,41 @@ namespace EyeTrackingApi.Controllers
                 switch (format.ToLower())
                 {
                     case "json":
-                        var exportDto = new SessionExportDto
+                        var jsonExport = new
                         {
-                            PageUrl = session.PageUrl,
-                            StartTime = session.StartTime,
-                            TrackingData = session.TrackingDataPoints
-                                .Select(t => new TrackingDataPointDto
+                            pageUrl = session.PageUrl,
+                            startTime = session.StartTime,
+                            trackingData = session.TrackingDataPoints.Select(t => new
+                            {
+                                timestamp = t.Timestamp,
+                                videoState = new
                                 {
-                                    Timestamp = t.Timestamp,
-                                    VideoState = t.VideoState,
-                                    Biometrics = t.Biometrics,
-                                    GazeData = t.GazeData
-                                }).ToList()
+                                    t.VideoState.Width,
+                                    t.VideoState.Height,
+                                    t.VideoState.X,
+                                    t.VideoState.Y,
+                                    t.VideoState.IsFullscreen,
+                                    t.VideoState.CurrentTime,
+                                    t.VideoState.IsPaused
+                                },
+                                biometrics = new
+                                {
+                                    t.Biometrics.Bpm,
+                                    t.Biometrics.Gsr,
+                                    t.Biometrics.AvgBpm
+                                },
+                                gazeData = t.GazeData == null ? null : new
+                                {
+                                    t.GazeData.X,
+                                    t.GazeData.Y
+                                }
+                            })
                         };
 
                         fileBytes = Encoding.UTF8.GetBytes(
-                            JsonSerializer.Serialize(exportDto, new JsonSerializerOptions
+                            JsonSerializer.Serialize(jsonExport, new JsonSerializerOptions
                             {
-                                WriteIndented = true,
-                                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+                                WriteIndented = true
                             })
                         );
                         contentType = "application/json";
@@ -170,13 +162,53 @@ namespace EyeTrackingApi.Controllers
 
                     case "csv":
                         var csvSb = new StringBuilder();
-                        csvSb.AppendLine("Timestamp,X,Y,Width,Height,BPM,GSR,AvgBPM");
+                        csvSb.AppendLine("PageUrl,StartTime,Timestamp,Width,Height,X,Y,IsFullscreen,CurrentTime,IsPaused,BPM,GSR,AvgBPM,GazeX,GazeY");
+
                         foreach (var t in session.TrackingDataPoints)
-                            csvSb.AppendLine($"{t.Timestamp},{t.VideoState?.X},{t.VideoState?.Y},{t.VideoState?.Width},{t.VideoState?.Height},{t.Biometrics?.Bpm},{t.Biometrics?.Gsr},{t.Biometrics?.AvgBpm}");
+                        {
+                            csvSb.AppendLine($"{session.PageUrl},{session.StartTime},{t.Timestamp}," +
+                                $"{t.VideoState?.Width ?? 0},{t.VideoState?.Height ?? 0},{t.VideoState?.X ?? 0},{t.VideoState?.Y ?? 0}," +
+                                $"{t.VideoState?.IsFullscreen ?? false},{t.VideoState?.CurrentTime ?? 0},{t.VideoState?.IsPaused ?? false}," +
+                                $"{t.Biometrics?.Bpm ?? -1},{t.Biometrics?.Gsr ?? -1},{t.Biometrics?.AvgBpm ?? -1}," +
+                                $"{t.GazeData?.X ?? 0},{t.GazeData?.Y ?? 0}");
+                        }
+
                         fileBytes = Encoding.UTF8.GetBytes(csvSb.ToString());
                         contentType = "text/csv";
                         break;
+                    case "zip":
+                        using (var ms = new MemoryStream())
+                        {
+                            using (var archive = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Create, true))
+                            {
+                                var entry = archive.CreateEntry($"session-{id}.json");
+                                using var entryStream = entry.Open();
+                                using var writer = new StreamWriter(entryStream);
 
+                                var zipJson = new
+                                {
+                                    pageUrl = session.PageUrl,
+                                    startTime = session.StartTime,
+                                    trackingData = session.TrackingDataPoints.Select(t => new
+                                    {
+                                        timestamp = t.Timestamp,
+                                        videoState = t.VideoState,
+                                        biometrics = t.Biometrics,
+                                        gazeData = t.GazeData
+                                    })
+                                };
+
+                                writer.Write(JsonSerializer.Serialize(zipJson, new JsonSerializerOptions
+                                {
+                                    WriteIndented = true
+                                }));
+                            }
+
+                            fileBytes = ms.ToArray();
+                        }
+
+                        contentType = "application/zip";
+                        break;
                     default:
                         return BadRequest("Invalid format");
                 }
